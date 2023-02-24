@@ -134,6 +134,11 @@ public class BootReceiver extends BroadcastReceiver {
     // Avoid reporing the same bug from processDmesg() twice.
     private static String sLastReportedBug = null;
 
+    public boolean fileExists(String fileName) {
+       final File file = new File(fileName);
+        return file.exists();
+    }
+
     @Override
     public void onReceive(final Context context, Intent intent) {
         // Log boot events in the background to avoid blocking the main thread with I/O
@@ -164,6 +169,7 @@ public class BootReceiver extends BroadcastReceiver {
 
         FileDescriptor tracefd = null;
         try {
+            if (!fileExists(ERROR_REPORT_TRACE_PIPE)) return;
             tracefd = Os.open(ERROR_REPORT_TRACE_PIPE, O_RDONLY, 0600);
         } catch (ErrnoException e) {
             Slog.wtf(TAG, "Could not open " + ERROR_REPORT_TRACE_PIPE, e);
