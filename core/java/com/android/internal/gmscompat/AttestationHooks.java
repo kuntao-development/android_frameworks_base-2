@@ -19,6 +19,7 @@ package com.android.internal.gmscompat;
 import android.app.Application;
 import android.content.res.Resources;
 import android.os.Build;
+import android.os.Build.VERSION;
 import android.os.SystemProperties;
 import android.util.Log;
 
@@ -35,14 +36,14 @@ public final class AttestationHooks {
 
     private static final String PACKAGE_GMS = "com.google.android.gms";
 
+    private static final String PACKAGE_FINSKY = "com.android.vending";
+
     private static final String PROCESS_UNSTABLE = "com.google.android.gms.unstable";
 
     private static final String PACKAGE_GPHOTOS = "com.google.android.apps.photos";
 
-    private static final String PRODUCT_GMS_SPOOFING_FINGERPRINT =
-            SystemProperties.get("ro.build.gms_fingerprint");
-
     private static volatile boolean sIsGms = false;
+    private static volatile boolean sIsFinsky = false;
     private static volatile boolean sIsPhotos = false;
 
     private AttestationHooks() { }
@@ -63,14 +64,29 @@ public final class AttestationHooks {
         }
     }
 
-    private static void spoofBuildGms() {
-        // Set fingerprint for SafetyNet CTS profile
-        if (PRODUCT_GMS_SPOOFING_FINGERPRINT.length() > 0) {
-            setBuildField("FINGERPRINT", PRODUCT_GMS_SPOOFING_FINGERPRINT);
-        }
+    private static void setVersionField(String key, Integer value) {
+        try {
+            // Unlock
+            Field field = Build.VERSION.class.getDeclaredField(key);
+            field.setAccessible(true);
 
-        // Alter model name to avoid hardware attestation enforcement
-        setBuildField("MODEL", Build.MODEL + " ");
+            // Edit
+            field.set(null, value);
+
+            // Lock
+            field.setAccessible(false);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            Log.e(TAG, "Failed to spoof Build.VERSION." + key, e);
+        }
+    }
+
+    private static void spoofBuildGms() {
+        // Alter build parameters to avoid hardware attestation enforcement
+        setBuildField("DEVICE", "angler");
+        setBuildField("FINGERPRINT", "google/angler/angler:7.0/NPD90G/3051502:user/release-keys");
+        setBuildField("MODEL", "Nexus 6P");
+        setBuildField("PRODUCT", "angler");
+        setVersionField("DEVICE_INITIAL_SDK_INT", Build.VERSION_CODES.N);
     }
 
     private static final Map<String, Object> sP1Props = new HashMap<>();
@@ -109,6 +125,10 @@ public final class AttestationHooks {
             sIsPhotos = true;
             sP1Props.forEach((k, v) -> setBuildField(k, v));
         }
+
+        if (PACKAGE_FINSKY.equals(app.getPackageName())) {
+            sIsFinsky = true;
+        }
     }
 
     public static boolean hasSystemFeature(String name, boolean def) {
@@ -120,13 +140,14 @@ public final class AttestationHooks {
     }
 
     private static boolean isCallerSafetyNet() {
-        return Arrays.stream(Thread.currentThread().getStackTrace())
+        return sIsGms && Arrays.stream(Thread.currentThread().getStackTrace())
                 .anyMatch(elem -> elem.getClassName().contains("DroidGuard"));
     }
 
     public static void onEngineGetCertificateChain() {
-        // Check stack for SafetyNet
-        if (sIsGms && isCallerSafetyNet()) {
+        // Check stack for SafetyNet or Play Integrity
+        if (isCallerSafetyNet() || sIsFinsky) {
+            Log.i(TAG, "Blocked key attestation sIsGms=" + sIsGms + " sIsFinsky=" + sIsFinsky);
             throw new UnsupportedOperationException();
         }
     }
