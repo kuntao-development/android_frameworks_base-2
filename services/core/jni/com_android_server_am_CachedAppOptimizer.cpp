@@ -517,6 +517,21 @@ static void com_android_server_am_CachedAppOptimizer_compactProcess(JNIEnv*, job
     compactProcessOrFallback(pid, compactionFlags);
 }
 
+static void com_android_server_am_CachedAppOptimizer_enableFreezerInternal(
+        JNIEnv *env, jobject clazz, jboolean enable) {
+    bool success = true;
+
+    if (enable) {
+        success = SetTaskProfiles(0, {"FreezerEnabled"}, true);
+    } else {
+        success = SetTaskProfiles(0, {"FreezerDisabled"}, true);
+    }
+
+    if (!success) {
+        jniThrowException(env, "java/lang/RuntimeException", "Unknown error");
+    }
+}
+
 static jint com_android_server_am_CachedAppOptimizer_freezeBinder(JNIEnv* env, jobject clazz,
                                                                   jint pid, jboolean freeze,
                                                                   jint timeout_ms) {
@@ -550,17 +565,6 @@ static jint com_android_server_am_CachedAppOptimizer_getBinderFreezeInfo(JNIEnv 
     return retVal;
 }
 
-static jstring com_android_server_am_CachedAppOptimizer_getFreezerCheckPath(JNIEnv* env,
-                                                                            jobject clazz) {
-    std::string path;
-
-    if (!getAttributePathForTask("FreezerState", getpid(), &path)) {
-        path = "";
-    }
-
-    return env->NewStringUTF(path.c_str());
-}
-
 static jboolean com_android_server_am_CachedAppOptimizer_isFreezerProfileValid(JNIEnv* env) {
     int uid = getuid();
     int pid = getpid();
@@ -582,11 +586,11 @@ static const JNINativeMethod sMethods[] = {
          (void*)com_android_server_am_CachedAppOptimizer_getMemoryFreedCompaction},
         {"compactSystem", "()V", (void*)com_android_server_am_CachedAppOptimizer_compactSystem},
         {"compactProcess", "(II)V", (void*)com_android_server_am_CachedAppOptimizer_compactProcess},
+        {"enableFreezerInternal", "(Z)V",
+         (void*)com_android_server_am_CachedAppOptimizer_enableFreezerInternal},
         {"freezeBinder", "(IZI)I", (void*)com_android_server_am_CachedAppOptimizer_freezeBinder},
         {"getBinderFreezeInfo", "(I)I",
          (void*)com_android_server_am_CachedAppOptimizer_getBinderFreezeInfo},
-        {"getFreezerCheckPath", "()Ljava/lang/String;",
-         (void*)com_android_server_am_CachedAppOptimizer_getFreezerCheckPath},
         {"isFreezerProfileValid", "()Z",
          (void*)com_android_server_am_CachedAppOptimizer_isFreezerProfileValid}};
 
