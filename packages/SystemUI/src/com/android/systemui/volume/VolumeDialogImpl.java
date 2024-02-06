@@ -452,6 +452,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
 
     @Override
     public void destroy() {
+        Log.d(TAG, "destroy() called");
         mController.removeCallback(mControllerCallbackH);
         mHandler.removeCallbacksAndMessages(null);
         mConfigurationController.removeCallback(this);
@@ -557,6 +558,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     }
 
     private void initDialog(int lockTaskModeState) {
+        Log.d(TAG, "initDialog: called!");
         mDialog = new CustomDialog(mContext);
 
         initDimens();
@@ -784,6 +786,8 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 if (mSeparateNotification) {
                     addRow(AudioManager.STREAM_RING, R.drawable.ic_ring_volume,
                             R.drawable.ic_ring_volume_off, true, false);
+                    addRow(AudioManager.STREAM_NOTIFICATION, R.drawable.ic_notifications_alert,
+                            R.drawable.ic_notifications_silence, true, false);
                 } else {
                     addRow(AudioManager.STREAM_RING, R.drawable.ic_volume_ringer,
                             R.drawable.ic_volume_ringer, true, false);
@@ -1522,7 +1526,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     }
 
     protected void tryToRemoveCaptionsTooltip() {
-        if (mHasSeenODICaptionsTooltip && mODICaptionsTooltipView != null) {
+        if (mHasSeenODICaptionsTooltip && mODICaptionsTooltipView != null && mDialog != null) {
             ViewGroup container = mDialog.findViewById(R.id.volume_dialog_container);
             container.removeView(mODICaptionsTooltipView);
             mODICaptionsTooltipView = null;
@@ -1716,8 +1720,16 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
 
         mHandler.removeMessages(H.DISMISS);
         mHandler.removeMessages(H.SHOW);
-        if (mIsAnimatingDismiss) {
-            Log.d(TAG, "dismissH: isAnimatingDismiss");
+
+        boolean showingStateInconsistent = !mShowing && mDialog != null && mDialog.isShowing();
+        // If incorrectly assuming dialog is not showing, continue and make the state consistent.
+        if (showingStateInconsistent) {
+            Log.d(TAG, "dismissH: volume dialog possible in inconsistent state:"
+                    + "mShowing=" + mShowing + ", mDialog==null?" + (mDialog == null));
+        }
+        if (mIsAnimatingDismiss && !showingStateInconsistent) {
+            Log.d(TAG, "dismissH: skipping dismiss because isAnimatingDismiss is true"
+                    + " and showingStateInconsistent is false");
             Trace.endSection();
             return;
         }
@@ -1735,8 +1747,12 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 .setDuration(mDialogHideAnimationDurationMs)
                 .setInterpolator(new SystemUIInterpolators.LogAccelerateInterpolator())
                 .withEndAction(() -> mHandler.postDelayed(() -> {
-                    mController.notifyVisible(false);
-                    mDialog.dismiss();
+                    if (mController != null) {
+                        mController.notifyVisible(false);
+                    }
+                    if (mDialog != null) {
+                        mDialog.dismiss();
+                    }
                     tryToRemoveCaptionsTooltip();
                     mExpanded = false;
                     if (mExpandRows != null) {
@@ -1772,6 +1788,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
     private boolean isExpandableRowH(VolumeRow row) {
         return row != null && row != mDefaultRow && !row.defaultStream
                 && (row.stream == STREAM_RING
+                        || row.stream == STREAM_NOTIFICATION
                         || row.stream == STREAM_ALARM
                         || row.stream == STREAM_MUSIC);
     }
@@ -2161,6 +2178,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         final boolean isVoiceCallStream = row.stream == AudioManager.STREAM_VOICE_CALL;
         final boolean isA11yStream = row.stream == STREAM_ACCESSIBILITY;
         final boolean isRingStream = row.stream == AudioManager.STREAM_RING;
+        final boolean isNotificationStream = row.stream == AudioManager.STREAM_NOTIFICATION;
         final boolean isSystemStream = row.stream == AudioManager.STREAM_SYSTEM;
         final boolean isAlarmStream = row.stream == STREAM_ALARM;
         final boolean isMusicStream = row.stream == AudioManager.STREAM_MUSIC;
@@ -2168,6 +2186,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
                 && mState.ringerModeInternal == AudioManager.RINGER_MODE_VIBRATE;
         final boolean isRingSilent = isRingStream
                 && mState.ringerModeInternal == AudioManager.RINGER_MODE_SILENT;
+        final boolean isNotificationMuted = isNotificationStream && ss.muted;
         final boolean isZenPriorityOnly = mState.zenMode == Global.ZEN_MODE_IMPORTANT_INTERRUPTIONS;
         final boolean isZenAlarms = mState.zenMode == Global.ZEN_MODE_ALARMS;
         final boolean isZenNone = mState.zenMode == Global.ZEN_MODE_NO_INTERRUPTIONS;
@@ -2200,7 +2219,7 @@ public class VolumeDialogImpl implements VolumeDialog, Dumpable,
         final int iconRes;
         if (isRingVibrate) {
             iconRes = R.drawable.ic_volume_ringer_vibrate;
-        } else if (isRingSilent || zenMuted) {
+        } else if (isRingSilent || isNotificationMuted || zenMuted) {
             iconRes = row.iconMuteRes;
         } else if (ss.routedToBluetooth) {
             if (isVoiceCallStream) {
