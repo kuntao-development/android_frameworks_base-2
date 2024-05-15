@@ -88,12 +88,12 @@ public final class AttestationHooks {
         // Alter model name and fingerprint to avoid hardware attestation enforcement
         setBuildField("BRAND", "motorola");
         setBuildField("MANUFACTURER", "motorola");
-        setBuildField("DEVICE", "griffin");
-        setBuildField("ID", "MCC24.246-37");
-        setBuildField("FINGERPRINT", "motorola/griffin_retcn/griffin:6.0.1/MCC24.246-37/42:user/release-keys");
-        setBuildField("PRODUCT", "griffin_retcn");
-        setBuildField("MODEL", "XT1650-05");
-        setVersionFieldString("SECURITY_PATCH", "2016-07-01");
+        setBuildField("DEVICE", "clark");
+        setBuildField("ID", "MPHS24.49-18-8");
+        setBuildField("FINGERPRINT", "motorola/clark_retus/clark:6.0/MPHS24.49-18-8/4:user/release-keys");
+        setBuildField("PRODUCT", "clark_retus");
+        setBuildField("MODEL", "XT1575");
+        setVersionFieldString("SECURITY_PATCH", "2016-09-01");
     }
 
     public static void initApplicationBeforeOnCreate(Application app) {
